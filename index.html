@@ -1,0 +1,74 @@
+cat > index.html <<'EOF'
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <title>RDStation Panel</title>
+  <style>
+    body { font-family: sans-serif; padding: 1rem; }
+    button { margin: .5rem 0; padding: .5rem 1rem; }
+  </style>
+</head>
+<body>
+  <h2>RDStation Quick Actions</h2>
+  <p id="info">Carregando...</p>
+  <button id="btnMessage" disabled>Enviar Cadência SDR</button>
+  <button id="btnDeal"    disabled>Adicionar ao Kanban</button>
+  <script>
+  (async function(){
+    // —– CONFIGURE THESE —–
+    const ACCOUNT_ID  = 2;   // seu account_id
+    const INBOX_ID    = 3;   // seu inbox_id
+    const PIPELINE_ID = 5;   // pipeline Kanban
+    const STAGE_ID    = 12;  // etapa alvo
+    // —––––––––––––––––––––
+
+    function qs(path, opts) {
+      return fetch(path, Object.assign({
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' }
+      }, opts)).then(r=>r.json());
+    }
+
+    // 1) Get conversation & contact
+    const convId = window.location.pathname.match(/\/conversations\/(\d+)/)[1];
+    const conv   = await qs(`/api/v1/accounts/${ACCOUNT_ID}/conversations/${convId}`);
+    const contact = conv.payload.conversation.meta.sender;
+    const { name, email, phone_number: phone, id: contactId } = contact;
+
+    document.getElementById('info').innerText =
+      `Contato: ${name} ‹${email}› ${phone}`;
+
+    // enable buttons
+    document.querySelectorAll('button').forEach(b=>b.disabled=false);
+
+    // 2) Send Cadência SDR
+    document.getElementById('btnMessage')
+    .addEventListener('click', async () => {
+      const text = `Olá, ${name}! Seja *muito bem-vindo*…`;
+      await qs(
+        `/api/v1/accounts/${ACCOUNT_ID}/conversations/${convId}/messages`,
+        { method:'POST', body:JSON.stringify({ content:text, message_type:'outgoing' }) }
+      );
+      alert('Mensagem enviada!');
+    });
+
+    // 3) Add to Kanban
+    document.getElementById('btnDeal')
+    .addEventListener('click', async () => {
+      await qs(
+        `/api/v1/accounts/${ACCOUNT_ID}/pipelines/${PIPELINE_ID}/stages/${STAGE_ID}/deals`,
+        {
+          method:'POST',
+          body:JSON.stringify({
+            deal: { title:`Lead: ${name}`, contact_id:contactId, amount:null, properties:{ origem:'RDStation' } }
+          })
+        }
+      );
+      alert('Lead adicionado ao Kanban!');
+    });
+  })();
+  </script>
+</body>
+</html>
+EOF
